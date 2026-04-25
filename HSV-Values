@@ -1,0 +1,64 @@
+import cv2
+import numpy as np
+import time
+from picamera2 import Picamera2
+
+def nothing(x):
+    pass
+
+# Initialize Camera
+picam2 = Picamera2()
+config = picam2.create_video_configuration(main={"size": (320, 240), "format": "RGB888"})
+picam2.configure(config)
+picam2.start()
+time.sleep(2)
+
+# Create a window with sliders
+cv2.namedWindow('Tuning')
+cv2.createTrackbar('H Min', 'Tuning', 115, 179, nothing)
+cv2.createTrackbar('S Min', 'Tuning', 52, 255, nothing)
+cv2.createTrackbar('V Min', 'Tuning', 64, 255, nothing)
+cv2.createTrackbar('H Max', 'Tuning', 129, 179, nothing)
+cv2.createTrackbar('S Max', 'Tuning', 255, 255, nothing)
+cv2.createTrackbar('V Max', 'Tuning', 255, 255, nothing)
+
+print("Press 'q' to quit.")
+
+try:
+    while True:
+        frame = picam2.capture_array()
+        
+        # In your main script, vision operates on the top half. 
+        # Let's crop it exactly like your main script does.
+        vision_slice = frame[0:110, 0:320]
+        small = cv2.resize(vision_slice, (160, 55))
+        bgr_small = small#cv2.cvtColor(small, cv2.COLOR_RGB2BGR)
+        hsv = cv2.cvtColor(bgr_small, cv2.COLOR_BGR2HSV)
+
+        # Get current slider positions
+        h_min = cv2.getTrackbarPos('H Min', 'Tuning')
+        s_min = cv2.getTrackbarPos('S Min', 'Tuning')
+        v_min = cv2.getTrackbarPos('V Min', 'Tuning')
+        h_max = cv2.getTrackbarPos('H Max', 'Tuning')
+        s_max = cv2.getTrackbarPos('S Max', 'Tuning')
+        v_max = cv2.getTrackbarPos('V Max', 'Tuning')
+
+
+        lower = np.array([h_min, s_min, v_min])
+        upper = np.array([h_max, s_max, v_max])
+
+        # Create mask and resulting image
+        mask = cv2.inRange(hsv, lower, upper)
+        result = cv2.bitwise_and(bgr_small, bgr_small, mask=mask)
+
+        # Show windows (scaled up so you can see them clearly)
+        cv2.imshow('Original View', cv2.resize(bgr_small, (320, 110)))
+        cv2.imshow('Mask (White is what it sees)', cv2.resize(mask, (320, 110)))
+        
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            print(f"\nFinal Values:\nLOW  = np.array([{h_min}, {s_min}, {v_min}])")
+            print(f"HIGH = np.array([{h_max}, {s_max}, {v_max}])\n")
+            break
+finally:
+    picam2.stop()
+    cv2.destroyAllWindows()
